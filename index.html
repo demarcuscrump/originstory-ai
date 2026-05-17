@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1a1a1a" />
+    
+    <!-- SEO & Social Sharing -->
+    <title>Origin Story | Create Your Legend</title>
+    <meta name="description" content="A text-based comic book life simulation. Balance civilian life with superhero duties in a living, breathing city." />
+    
+    <!-- Google Fonts: Bangers (Headers) and Comic Neue (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'comic-yellow': '#F9F871',
+              'comic-red': '#FF6B6B',
+              'comic-blue': '#4D96FF',
+              'comic-black': '#1a1a1a',
+              'paper': '#ffffff',
+            },
+            fontFamily: {
+              sans: ['"Comic Neue"', 'cursive', 'sans-serif'],
+              display: ['"Bangers"', 'cursive'],
+              comic: ['"Comic Neue"', 'cursive', 'sans-serif'], 
+            },
+            boxShadow: {
+              'comic': '4px 4px 0px 0px #000000',
+              'comic-lg': '8px 8px 0px 0px #000000',
+            },
+            animation: {
+              'fade-in': 'fadeIn 0.5s ease-in-out',
+              'fade-in-up': 'fadeInUp 0.5s ease-out',
+              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            },
+            keyframes: {
+              fadeIn: {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              fadeInUp: {
+                '0%': { opacity: '0', transform: 'translateY(10px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        /* Clean, neutral background for maximum readability */
+        background-color: #e2e8f0; 
+        color: #000000;
+        font-family: 'Comic Neue', cursive;
+        overscroll-behavior: none;
+      }
+
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+      }
+      
+      input[type="text"], textarea, select {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          font-family: 'Comic Neue', cursive !important;
+          font-weight: 700 !important;
+      }
+
+      /* VISUAL VARIANTS (PRD 2.2.4) */
+      .theme-noir {
+          filter: grayscale(100%) contrast(120%) brightness(90%);
+      }
+      .theme-retro {
+          filter: sepia(80%) contrast(90%) brightness(95%) hue-rotate(-10deg);
+      }
+      .theme-neon {
+          filter: contrast(110%) saturate(150%) hue-rotate(10deg);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.5.1",
+    "openai": "https://esm.sh/openai@4.28.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
