@@ -11,13 +11,29 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.API_KEY': JSON.stringify(env.VITE_OPENROUTER_API_KEY),
+        'process.env.OPENROUTER_API_KEY': JSON.stringify(env.VITE_OPENROUTER_API_KEY)
       },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (!id.includes('node_modules')) return;
+              if (id.includes('/recharts') || id.includes('/d3-')) {
+                return 'vendor-charts';
+              }
+              if (id.includes('/openai')) {
+                return 'vendor-ai';
+              }
+              return 'vendor';
+            },
+          },
+        },
       }
     };
 });

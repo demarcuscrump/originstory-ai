@@ -10,7 +10,7 @@ Hybrid Engine. Dynamic Scenarios. Infinite Canvas.
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white)](https://typescriptlang.org)
 [![Zustand](https://img.shields.io/badge/Zustand-5-764ABC?logo=react&logoColor=white)](https://github.com/pmndrs/zustand)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-CDN-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Vitest](https://img.shields.io/badge/Vitest-4-6E9F18?logo=vitest&logoColor=white)](https://vitest.dev)
 [![Anthropic Claude](https://img.shields.io/badge/Claude_3.5_Haiku-D4C5B9?logo=anthropic&logoColor=black)](https://anthropic.com)
 [![OpenAI](https://img.shields.io/badge/GPT--5.4--Image--2-412991?logo=openai&logoColor=white)](https://openai.com)
@@ -21,11 +21,11 @@ Hybrid Engine. Dynamic Scenarios. Infinite Canvas.
 
 ---
 
-## Demo
+## Portfolio Demo
 
-> **Video / GIF placeholder** — record a 30-second gameplay clip and drop it here:
->
-> `![Demo](docs/demo.gif)`
+Origin Story opens directly into the playable comic-book loop: create a hero or villain, generate an origin, make civilian/hero/villain choices, and archive finished runs in the Long Box.
+
+The deterministic game loop is explorable without an API key. OpenRouter keys unlock the generative story panels, character analysis, NPCs, villains, and image moments.
 
 ---
 

@@ -37,9 +37,9 @@ export const PrdChecklist: React.FC<PrdChecklistProps> = ({ isOpen, onClose }) =
         
         <div className="p-6 space-y-6">
           <p className="font-comic text-sm border-b-2 border-black pb-4">
-            Current build status against the "Whole Platform" Product Requirements Document.
+            Current build status for the portfolio showcase build.
             <br/>
-            <span className="font-bold text-green-600">STATUS: GOLD MASTER (COMPLETE)</span>
+            <span className="font-bold text-green-600">STATUS: PORTFOLIO SHOWCASE READY</span>
           </p>
 
           <div>
@@ -59,9 +59,9 @@ export const PrdChecklist: React.FC<PrdChecklistProps> = ({ isOpen, onClose }) =
 
           <div>
             <h3 className="text-lg font-black bg-comic-red text-white inline-block px-2 mb-2 transform -rotate-1">PHASE 3: AI INTELLIGENCE</h3>
-            <Item label="Narrative Engine" isDone={true} notes="Gemini 2.5 Flash generating context-aware text." />
+            <Item label="Narrative Engine" isDone={true} notes="OpenRouter text model generating context-aware story panels." />
             <Item label="Origin Story Generator" isDone={true} notes="Custom prompt for initial character creation." />
-            <Item label="Visual Engine" isDone={true} notes="Gemini 2.5 Flash Image generating panel art." />
+            <Item label="Visual Engine" isDone={true} notes="OpenRouter image model generating panel art." />
             <Item label="Context Awareness" isDone={true} notes="History windowing injected into prompts." />
           </div>
 
@@ -75,7 +75,7 @@ export const PrdChecklist: React.FC<PrdChecklistProps> = ({ isOpen, onClose }) =
           <div>
              <h3 className="text-lg font-black bg-purple-600 text-white inline-block px-2 mb-2 transform -rotate-1">PHASE 5: DYNAMIC AGENCY</h3>
              <Item label="Contextual Suggestions" isDone={true} notes="AI reads the story and suggests relevant next moves." />
-             <Item label="JSON Structured Output" isDone={true} notes="Using Gemini responseSchema for strict action typing." />
+             <Item label="JSON Structured Output" isDone={true} notes="Using JSON response formats for strict action typing." />
              <Item label="Immersive UI" isDone={true} notes="Dynamic buttons appearing inline with the story." />
           </div>
 
@@ -138,7 +138,7 @@ export const PrdChecklist: React.FC<PrdChecklistProps> = ({ isOpen, onClose }) =
              <h3 className="text-lg font-black bg-amber-500 text-white inline-block px-2 mb-2 transform rotate-1">PHASE 14: THE SUPER SUIT</h3>
              <Item label="Visual Progression" isDone={true} notes="Added 'costume' field to character state." />
              <Item label="Suit Workshop" isDone={true} notes="New UI in Secret Lair to design upgraded gear." />
-             <Item label="Persistent Appearance" isDone={true} notes="Gemini image prompt now enforces the specific suit design." />
+             <Item label="Persistent Appearance" isDone={true} notes="Image prompts now enforce the specific suit design." />
           </div>
 
           <div>
@@ -175,10 +175,10 @@ export const PrdChecklist: React.FC<PrdChecklistProps> = ({ isOpen, onClose }) =
           </div>
 
           <div>
-             <h3 className="text-lg font-black bg-white text-black border-2 border-black inline-block px-2 mb-2 transform rotate-1">PHASE 20: GOLD MASTER</h3>
+             <h3 className="text-lg font-black bg-white text-black border-2 border-black inline-block px-2 mb-2 transform rotate-1">PHASE 20: SHOWCASE RELEASE</h3>
              <Item label="Feature Complete" isDone={true} notes="All core mechanics and content systems are online." />
              <Item label="Social Sharing" isDone={true} notes="Implemented copy-to-clipboard for Hero Summaries in Archives." />
-             <Item label="Launch Ready" isDone={true} notes="Application ready for deployment." />
+             <Item label="Portfolio Ready" isDone={true} notes="Application ready to present as an interactive portfolio piece." />
           </div>
 
           <div className="mt-8 border-t-4 border-black pt-4 text-center">

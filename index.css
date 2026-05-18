@@ -1,0 +1,36 @@
+body {
+  background-color: #e2e8f0;
+  color: #000000;
+  font-family: 'Comic Neue', cursive;
+  overscroll-behavior: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+input[type="text"],
+textarea,
+select {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  font-family: 'Comic Neue', cursive !important;
+  font-weight: 700 !important;
+}
+
+.theme-noir {
+  filter: grayscale(100%) contrast(120%) brightness(90%);
+}
+
+.theme-retro {
+  filter: sepia(80%) contrast(90%) brightness(95%) hue-rotate(-10deg);
+}
+
+.theme-neon {
+  filter: contrast(110%) saturate(150%) hue-rotate(10deg);
+}

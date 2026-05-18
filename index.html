@@ -38,6 +38,7 @@
             animation: {
               'fade-in': 'fadeIn 0.5s ease-in-out',
               'fade-in-up': 'fadeInUp 0.5s ease-out',
+              'float': 'float 8s ease-in-out infinite',
               'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
             },
             keyframes: {
@@ -48,62 +49,20 @@
               fadeInUp: {
                 '0%': { opacity: '0', transform: 'translateY(10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              float: {
+                '0%, 100%': { transform: 'translateY(0)' },
+                '50%': { transform: 'translateY(-8px)' },
               }
             }
           }
         }
       }
     </script>
-    <style>
-      body {
-        /* Clean, neutral background for maximum readability */
-        background-color: #e2e8f0; 
-        color: #000000;
-        font-family: 'Comic Neue', cursive;
-        overscroll-behavior: none;
-      }
-
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-      }
-      
-      input[type="text"], textarea, select {
-          background-color: #ffffff !important;
-          color: #000000 !important;
-          font-family: 'Comic Neue', cursive !important;
-          font-weight: 700 !important;
-      }
-
-      /* VISUAL VARIANTS (PRD 2.2.4) */
-      .theme-noir {
-          filter: grayscale(100%) contrast(120%) brightness(90%);
-      }
-      .theme-retro {
-          filter: sepia(80%) contrast(90%) brightness(95%) hue-rotate(-10deg);
-      }
-      .theme-neon {
-          filter: contrast(110%) saturate(150%) hue-rotate(10deg);
-      }
-    </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react": "https://esm.sh/react@^19.2.3",
-    "recharts": "https://esm.sh/recharts@^3.5.1",
-    "openai": "https://esm.sh/openai@4.28.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
+    <link rel="stylesheet" href="/index.css">
+  </head>
   <body>
     <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
+    <script type="module" src="/index.tsx"></script>
+  </body>
 </html>
