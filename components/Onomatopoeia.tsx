@@ -19,9 +19,9 @@ export const Onomatopoeia: React.FC<OnomatopoeiaProps> = ({ text, type = 'COMBAT
   }, []);
 
   const styles = {
-    COMBAT: 'text-comic-red border-black bg-comic-yellow rotate-12',
-    DANGER: 'text-white border-white bg-red-600 -rotate-6',
-    VICTORY: 'text-comic-blue border-white bg-white rotate-3',
+    COMBAT: 'text-[#161616] border-[#0E0E0E] bg-[#FFD21F] rotate-12 rounded-[28px]',
+    DANGER: 'text-white border-[#0E0E0E] bg-[#D85A4F] -rotate-6 rounded-[28px]',
+    VICTORY: 'text-[#161616] border-[#0E0E0E] bg-[#FFD21F] rotate-3 rounded-[28px]',
   };
 
   return (

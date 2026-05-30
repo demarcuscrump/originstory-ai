@@ -1,9 +1,8 @@
-import React, { useRef, useEffect, useCallback } from 'react';
-import { Virtuoso, VirtuosoHandle } from 'react-virtuoso';
+import React from 'react';
 import { Button } from '../components/Button';
-import { EventPanel } from '../components/EventPanel';
+import { AiSettingsModal } from '../components/AiSettingsModal';
 import { PrdChecklist } from '../components/PrdChecklist';
-import { WantedPoster } from '../components/WantedPoster';
+import { NemesisDossierModal, NemesisSummaryCard } from '../components/NemesisDossier';
 import { NewspaperModal } from '../components/NewspaperModal';
 import { LairModal } from '../components/LairModal';
 import { LifestyleModal } from '../components/LifestyleModal';
@@ -14,12 +13,173 @@ import { VillainModal } from '../components/VillainModal';
 import { TeamModal } from '../components/TeamModal';
 import { PullListModal } from '../components/PullListModal';
 import { Onomatopoeia } from '../components/Onomatopoeia';
-import { StatRadar } from '../components/StatRadar';
 import { useGameStore } from '../store/useGameStore';
 import { useGameActions } from '../hooks/useGameActions';
 import { getActionsForAlignment, getJusticeLabel } from '../constants/gameData';
-import { Alignment } from '../types';
+import { Alignment, GameEvent } from '../types';
 import { audio } from '../services/audioService';
+import { generatePanelImage } from '../services/aiService';
+
+const statTone = (label: string, value: number) => {
+  if (label === 'Suspicion' && value >= 80) return 'bg-[#3B2422] border-[#D85A4F] text-[#FFD7D2]';
+  if (value >= 70) return 'bg-[#25382E] border-[#2DD38F] text-[#CFFFF0]';
+  if (value <= 20) return 'bg-[#3F3720] border-[#FFD21F] text-[#FFECA0]';
+  return 'bg-[#343434] border-[#0E0E0E] text-[#F4F4F0]';
+};
+
+const eventLabel: Record<GameEvent['type'], string> = {
+  ACTION_RESULT: 'Turn Result',
+  ARC_EVENT: 'Key Issue',
+  CRISIS: 'Crisis',
+  DIALOGUE: 'Dialogue',
+  NARRATIVE: 'Story Beat',
+  ORIGIN: 'Issue #1: Origin',
+  RETCON: 'Retcon',
+  TEAM_REPORT: 'Team Report',
+};
+
+const previewText = (value: string, maxLength = 150) => {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength).trim()}...`;
+};
+
+const StatCard: React.FC<{ label: string; value: number; suffix?: string }> = ({ label, value, suffix = '%' }) => (
+  <div className={`rounded-2xl border-2 p-3 shadow-[3px_3px_0px_#0E0E0E] ${statTone(label, value)}`}>
+    <div className="text-[10px] font-black uppercase tracking-wide opacity-70">{label}</div>
+    <div className="font-mono text-xl font-black leading-none">
+      {value}<span className="text-xs ml-0.5">{suffix}</span>
+    </div>
+  </div>
+);
+
+const EmptyLine: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <li className="text-[#B8B8B0] italic text-xs">{children}</li>
+);
+
+const CurrentPanel: React.FC<{ event?: GameEvent; panelNumber: number; onRetryImage?: (event: GameEvent) => void }> = ({ event, panelNumber, onRetryImage }) => {
+  if (!event) {
+    return (
+      <article className="flex-1 min-h-0 bg-[#343434] border-2 border-[#0E0E0E] rounded-[28px] shadow-[5px_5px_0px_#0E0E0E] p-5 flex items-center justify-center text-center">
+        <div>
+          <p className="font-display text-3xl tracking-wide text-[#FFD21F]">No panels yet</p>
+          <p className="text-sm text-[#B8B8B0] mt-2">Create a character to begin the first issue.</p>
+        </div>
+      </article>
+    );
+  }
+
+  const expectsPanelArt = ['ORIGIN', 'CRISIS', 'RETCON', 'ARC_EVENT'].includes(event.type);
+  const hasPanelArt = Boolean(event.imageUrl || event.isGeneratingImage || event.imageError || expectsPanelArt);
+  const needsCaptionScroll = event.text.length > 700;
+
+  return (
+    <article className="flex-1 min-h-0 bg-[#343434] border-2 border-[#0E0E0E] rounded-[28px] shadow-[5px_5px_0px_#0E0E0E] flex flex-col overflow-hidden">
+      <header className="shrink-0 border-b-2 border-[#0E0E0E] bg-[#3E3E3E] px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#FFD21F]">Current Panel</p>
+          <h3 className="font-display text-3xl italic tracking-wide leading-none text-[#F4F4F0]">{eventLabel[event.type]}</h3>
+        </div>
+        <div className="flex items-center gap-2">
+          {event.type === 'ARC_EVENT' && (
+            <span className="text-[10px] font-black uppercase rounded-full border-2 border-[#0E0E0E] bg-[#FFD21F] px-3 py-1 text-[#161616]">
+              Key Issue
+            </span>
+          )}
+          <span className="font-mono text-xs rounded-full bg-[#242424] border-2 border-[#0E0E0E] px-3 py-1 text-[#F4F4F0]">
+            Panel {panelNumber}
+          </span>
+        </div>
+      </header>
+
+      <div className={`flex-1 min-h-0 p-3 md:p-4 grid gap-3 md:gap-4 ${hasPanelArt ? 'xl:grid-cols-[minmax(340px,1fr)_minmax(380px,1fr)]' : 'grid-cols-1'}`}>
+        {hasPanelArt && (
+          <figure className="relative order-2 xl:order-1 min-h-[220px] h-[32dvh] max-h-[440px] xl:min-h-[260px] xl:h-full xl:max-h-none bg-[#181818] border-2 border-[#0E0E0E] rounded-[22px] overflow-hidden flex items-center justify-center">
+            {event.imageUrl ? (
+              <>
+                <img
+                  src={event.imageUrl}
+                  alt={`${eventLabel[event.type]} comic panel`}
+                  className="w-full h-full object-cover object-center bg-[#181818]"
+                  loading="eager"
+                />
+                {onRetryImage && (
+                  <button
+                    type="button"
+                    onClick={() => onRetryImage(event)}
+                    className="absolute bottom-3 right-3 rounded-full bg-[#FFD21F] text-[#161616] border-2 border-[#0E0E0E] px-3 py-1.5 text-[10px] font-black shadow-[2px_2px_0px_#0E0E0E] active:translate-x-1 active:translate-y-1 active:shadow-none"
+                  >
+                    REGEN ART
+                  </button>
+                )}
+              </>
+            ) : event.isGeneratingImage ? (
+              <div className="text-center px-4">
+                <div className="w-12 h-12 border-4 border-[#FFD21F] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                <p className="font-black uppercase tracking-wide text-[#F4F4F0]">Artist drawing panel</p>
+                <p className="text-sm text-[#C7C7BE] mt-1">Story is ready while the image renders.</p>
+              </div>
+            ) : (
+              <div className="text-center px-5 max-w-sm">
+                <p className="font-black uppercase tracking-wide text-[#FFD21F]">Panel art missing</p>
+                <p className="text-sm text-[#C7C7BE] mt-2">{event.imageError || 'The story loaded, but the art did not come back from the image model.'}</p>
+                {onRetryImage && (
+                  <button
+                    type="button"
+                    onClick={() => onRetryImage(event)}
+                    className="mt-4 rounded-full bg-[#FFD21F] text-[#161616] border-2 border-[#0E0E0E] px-4 py-2 text-xs font-black shadow-[2px_2px_0px_#0E0E0E] active:translate-x-1 active:translate-y-1 active:shadow-none"
+                  >
+                    RETRY ART
+                  </button>
+                )}
+              </div>
+            )}
+          </figure>
+        )}
+
+        <section className="order-1 xl:order-2 min-w-0 min-h-[220px] max-h-[40dvh] xl:max-h-none bg-[#2B2B2B] border-2 border-[#0E0E0E] rounded-[22px] p-4 flex flex-col overflow-hidden">
+          <div className="shrink-0 flex items-start justify-between gap-3 border-b border-[#4C4C4C] pb-2 mb-3">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#FFD21F]">Story Caption</p>
+              <p className="mt-1 text-[10px] font-mono uppercase text-[#B8B8B0]">
+                {new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} / Panel ID {event.id.slice(-4)}
+              </p>
+            </div>
+            <span className="text-[10px] font-mono uppercase text-[#B8B8B0]">{event.type.replace('_', ' ')}</span>
+          </div>
+          <div className={`min-h-0 flex-1 ${needsCaptionScroll ? 'overflow-y-auto pr-2 comic-scrollbar' : 'overflow-hidden'}`}>
+            <p className="font-sans max-w-[76ch] text-[13px] md:text-sm leading-6 text-[#F4F4F0] whitespace-pre-wrap break-words">
+              {event.text}
+            </p>
+          </div>
+        </section>
+      </div>
+    </article>
+  );
+};
+
+const RecentBeats: React.FC<{ events: GameEvent[] }> = ({ events }) => (
+  <section className="bg-[#343434] border-2 border-[#0E0E0E] rounded-[24px] shadow-[3px_3px_0px_#0E0E0E] p-3">
+    <div className="flex items-center justify-between gap-3 border-b border-[#515151] pb-2 mb-3">
+      <h3 className="font-black text-sm uppercase text-[#F4F4F0]">Recent Beats</h3>
+      <span className="text-[10px] font-mono text-[#B8B8B0]">{events.length} shown</span>
+    </div>
+    {events.length === 0 ? (
+      <p className="text-xs italic text-[#B8B8B0]">Previous panels will collect here.</p>
+    ) : (
+      <ol className="space-y-2">
+        {events.map((event) => (
+          <li key={event.id} className="bg-[#2B2B2B] border border-[#515151] rounded-2xl p-2">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <span className="text-[10px] font-black uppercase text-[#FFD21F]">{eventLabel[event.type]}</span>
+              <span className="text-[10px] font-mono text-[#B8B8B0]">{new Date(event.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <p className="text-xs leading-snug text-[#D8D8D2]">{previewText(event.text, 120)}</p>
+          </li>
+        ))}
+      </ol>
+    )}
+  </section>
+);
 
 export const PlayingScreen: React.FC = () => {
   const {
@@ -29,7 +189,7 @@ export const PlayingScreen: React.FC = () => {
     newspaperHeadline, fxState, isMuted, battlePassXp, bpRewards,
     isPremium,
     setActiveModal, setActiveTab, setFxState, setIsMuted, setArchives,
-    setIsPremium,
+    setIsPremium, setHistory,
   } = useGameStore();
 
   const {
@@ -39,28 +199,43 @@ export const PlayingScreen: React.FC = () => {
     handleClaimReward,
   } = useGameActions();
 
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
-
   const handleToggleMute = () => setIsMuted(audio.toggleMute());
-
-  useEffect(() => {
-    if (virtuosoRef.current && history.length > 0) {
-      virtuosoRef.current.scrollToIndex({ index: history.length - 1, behavior: 'smooth' });
-    }
-  }, [history.length, suggestedActions]);
-
-  const actions = character ? getActionsForAlignment(character.alignment) : { civilian: [], hero: [] };
-  const canConfront = stats.justice >= 30 && stats.glory >= 10 && !nemesis?.defeated;
-
-  const renderEventItem = useCallback((index: number) => {
-    const event = history[index];
-    return <EventPanel key={event.id} event={event} isNew={index === history.length - 1} />;
-  }, [history]);
 
   if (!character) return null;
 
+  const actions = getActionsForAlignment(character.alignment);
+  const canConfront = stats.justice >= 30 && stats.glory >= 10 && !nemesis?.defeated;
+  const justiceLabel = getJusticeLabel(character.alignment);
+  const currentEvent = history[history.length - 1];
+  const recentEvents = history.slice(Math.max(0, history.length - 4), Math.max(0, history.length - 1)).reverse();
+  const handleRetryPanelImage = React.useCallback((event: GameEvent) => {
+    setHistory(prev => prev.map(item => item.id === event.id ? {
+      ...item,
+      isGeneratingImage: true,
+      imageError: undefined,
+    } : item));
+
+    generatePanelImage(event.text, character).then(imageUrl => {
+      setHistory(prev => prev.map(item => item.id === event.id ? {
+        ...item,
+        imageUrl: imageUrl || item.imageUrl,
+        isGeneratingImage: false,
+        imageError: imageUrl ? undefined : 'Panel art could not be regenerated. Check your OpenRouter key, credits, or image model.',
+      } : item));
+    });
+  }, [character, setHistory]);
+  const purchasedAssets = assets.filter((asset) => asset.purchased);
+  const statCards: Array<{ label: string; value: number; suffix?: string }> = [
+    { label: 'Wealth', value: stats.wealth },
+    { label: 'Sanity', value: stats.sanity },
+    { label: justiceLabel, value: stats.justice },
+    { label: 'Glory', value: stats.glory },
+    { label: 'Suspicion', value: stats.suspicion },
+    { label: 'Retcons', value: stats.retconPoints, suffix: '' },
+  ];
+
   return (
-    <div id="game-container" className="min-h-screen flex flex-col max-w-2xl mx-auto border-x-4 border-black bg-white shadow-2xl relative overflow-hidden">
+    <div id="game-container" className="h-dvh max-h-dvh max-w-[1500px] mx-auto border-x-2 border-[#0E0E0E] bg-[#242424] shadow-2xl relative overflow-hidden flex flex-col text-[#F4F4F0]">
       <PrdChecklist isOpen={activeModal === 'PRD'} onClose={() => setActiveModal(null)} />
 
       {fxState && (
@@ -111,166 +286,213 @@ export const PlayingScreen: React.FC = () => {
         <LongBox archives={archives} onClose={() => setActiveModal(null)} onClear={() => setArchives([])} />
       )}
 
-      {/* ── Header ── */}
-      <header id="game-header" className="bg-comic-black text-white p-3 pt-10 md:pt-3 flex flex-wrap justify-between items-start border-b-4 border-black sticky top-0 z-20 shadow-md gap-2">
-        <div className="flex flex-col md:flex-row md:items-center gap-2 flex-1 min-w-0">
-          <div className="min-w-0">
-            <h2 className="font-display italic text-comic-yellow text-3xl tracking-wide break-words leading-none truncate drop-shadow-[2px_2px_0_#000]">
+      {activeModal === 'AI_SETTINGS' && (
+        <AiSettingsModal onClose={() => setActiveModal(null)} />
+      )}
+
+      {activeModal === 'NEMESIS_DOSSIER' && nemesis && (
+        <NemesisDossierModal
+          nemesis={nemesis}
+          canConfront={canConfront}
+          onConfront={handleShowdown}
+          onClose={() => setActiveModal(null)}
+        />
+      )}
+
+      <header id="game-header" className="shrink-0 bg-[#202020] text-[#F4F4F0] border-b-2 border-[#0E0E0E] p-3">
+        <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <h2 className="font-display italic text-[#FFD21F] text-3xl md:text-4xl tracking-wide leading-none truncate">
               {character.heroName}
-              {character.legacy && <span className="text-xs text-gray-400 ml-2 not-italic inline-block font-sans">({character.legacy.generation > 1 ? `Gen ${character.legacy.generation}` : ''})</span>}
+              {character.legacy && (
+                <span className="text-xs text-[#B8B8B0] ml-2 not-italic inline-block font-sans">
+                  {character.legacy.generation > 1 ? `Gen ${character.legacy.generation}` : ''}
+                </span>
+              )}
             </h2>
-            <div className="flex items-center gap-2 mt-1 flex-wrap">
-              <p className="text-xs font-mono whitespace-nowrap">Career Week {character.week} | Age {character.age}</p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className="text-xs font-mono rounded-full bg-[#343434] border border-[#515151] px-3 py-1">Week {character.week}</span>
+              <span className="text-xs font-mono rounded-full bg-[#343434] border border-[#515151] px-3 py-1">Age {character.age}</span>
               {character.currentArc && (
-                <span className="text-[10px] font-bold bg-white text-black px-1 border border-white inline-block whitespace-nowrap">
+                <span className="text-xs font-bold rounded-full bg-[#3E3E3E] text-[#FFD21F] px-3 py-1 border border-[#515151]">
                   ARC: {character.currentArc}
+                </span>
+              )}
+              {nemesis && !nemesis.defeated && (
+                <span className="text-xs font-black rounded-full bg-[#3B2422] text-[#FFD7D2] px-3 py-1 border border-[#D85A4F]">
+                  DOOM {nemesis.schemeProgress || 0}%
                 </span>
               )}
             </div>
           </div>
-          <div className="flex gap-2 flex-wrap mt-1">
-            <button onClick={() => { setActiveModal('LAIR'); audio.playClick(); }} className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-2 py-1 border border-white">LAIR</button>
-            <button onClick={() => { setActiveModal('TEAM'); audio.playClick(); }} className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-2 py-1 border border-white">TEAM</button>
-            <button onClick={() => { setActiveModal('PULLLIST'); audio.playClick(); }} className="text-xs bg-yellow-400 hover:bg-yellow-300 text-black font-bold px-2 py-1 border border-white">PULL LIST</button>
-            <button onClick={() => { setActiveModal('LIFESTYLE'); audio.playClick(); }} className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-2 py-1 border border-white">LIFESTYLE</button>
-          </div>
-        </div>
-        <div className="text-right flex flex-col items-end gap-1 shrink-0">
-          <div className="flex gap-2 mb-1">
-            <button onClick={handleToggleMute} className="text-[10px] text-white bg-gray-800 px-2 py-0.5 hover:bg-gray-700 font-bold border border-black shadow-comic transition-transform active:translate-y-1 active:shadow-none">
+
+          <nav className="flex gap-2 flex-wrap xl:justify-center">
+            <button onClick={() => { setActiveModal('LAIR'); audio.playClick(); }} className="rounded-full text-xs bg-[#3E3E3E] hover:bg-[#4A4A4A] text-[#F4F4F0] font-bold px-4 py-2 border-2 border-[#0E0E0E] shadow-[2px_2px_0px_#0E0E0E]">LAIR</button>
+            <button onClick={() => { setActiveModal('TEAM'); audio.playClick(); }} className="rounded-full text-xs bg-[#3E3E3E] hover:bg-[#4A4A4A] text-[#F4F4F0] font-bold px-4 py-2 border-2 border-[#0E0E0E] shadow-[2px_2px_0px_#0E0E0E]">TEAM</button>
+            <button onClick={() => { setActiveModal('PULLLIST'); audio.playClick(); }} className="rounded-full text-xs bg-[#FFD21F] hover:bg-[#FFE45A] text-[#161616] font-bold px-4 py-2 border-2 border-[#0E0E0E] shadow-[2px_2px_0px_#0E0E0E]">PULL LIST</button>
+            <button onClick={() => { setActiveModal('LIFESTYLE'); audio.playClick(); }} className="rounded-full text-xs bg-[#3E3E3E] hover:bg-[#4A4A4A] text-[#F4F4F0] font-bold px-4 py-2 border-2 border-[#0E0E0E] shadow-[2px_2px_0px_#0E0E0E]">LIFESTYLE</button>
+          </nav>
+
+          <div className="flex gap-2 flex-wrap xl:justify-end">
+            <button onClick={handleToggleMute} className="rounded-full text-[10px] text-[#F4F4F0] bg-[#343434] px-3 py-1.5 hover:bg-[#4A4A4A] font-bold border border-[#515151] shadow-[2px_2px_0px_#0E0E0E] transition-transform active:translate-y-1 active:shadow-none">
               {isMuted ? 'SOUND OFF' : 'SOUND ON'}
             </button>
-            <button onClick={() => { audio.playClick(); setActiveModal('PRD'); }} className="text-[10px] text-black bg-comic-yellow px-2 py-0.5 hover:bg-yellow-400 font-bold border border-black shadow-comic transition-transform active:translate-y-1 active:shadow-none">MISSION CONTROL</button>
-            <button onClick={() => { audio.playClick(); useGameStore.getState().setGamePhase('TITLE'); }} className="text-[10px] text-white bg-black px-2 py-0.5 hover:bg-gray-800 font-bold border border-black shadow-comic transition-transform active:translate-y-1 active:shadow-none">TITLE</button>
+            <button onClick={() => { audio.playClick(); setActiveModal('AI_SETTINGS'); }} className="rounded-full text-[10px] text-[#F4F4F0] bg-[#343434] px-3 py-1.5 hover:bg-[#4A4A4A] font-bold border border-[#515151] shadow-[2px_2px_0px_#0E0E0E] transition-transform active:translate-y-1 active:shadow-none">AI KEY</button>
+            <button onClick={() => { audio.playClick(); setActiveModal('PRD'); }} className="rounded-full text-[10px] text-[#161616] bg-[#FFD21F] px-3 py-1.5 hover:bg-[#FFE45A] font-bold border border-[#0E0E0E] shadow-[2px_2px_0px_#0E0E0E] transition-transform active:translate-y-1 active:shadow-none">MISSION CONTROL</button>
+            <button onClick={() => { audio.playClick(); useGameStore.getState().setGamePhase('TITLE'); }} className="rounded-full text-[10px] text-[#F4F4F0] bg-[#343434] px-3 py-1.5 hover:bg-[#4A4A4A] font-bold border border-[#515151] shadow-[2px_2px_0px_#0E0E0E] transition-transform active:translate-y-1 active:shadow-none">TITLE</button>
           </div>
-          <div className={`text-xs font-bold px-2 py-0.5 border-2 border-white ${stats.suspicion > 80 ? 'bg-comic-red animate-pulse' : 'bg-blue-600'}`}>
-            Suspicion: {stats.suspicion}%
-          </div>
-          {nemesis && !nemesis.defeated && (
-            <div className="flex items-center gap-1 bg-black border border-red-500 px-2 py-0.5">
-              <span className="text-[10px] text-red-500 font-black animate-pulse">DOOM</span>
-              <div className="w-16 h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-600">
-                <div className="h-full bg-red-600 transition-all duration-1000" style={{ width: `${nemesis.schemeProgress || 0}%` }}></div>
-              </div>
-            </div>
-          )}
         </div>
       </header>
 
-      {/* ── Stats Display ── */}
-      <div id="stats-display" className="bg-paper p-4 border-b-4 border-black shadow-inner flex flex-col md:flex-row gap-4">
-        <div className="flex-1 min-w-0 flex flex-col">
-          <StatRadar stats={stats} alignment={character.alignment} />
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4 flex-1">
-            <div className="border-[3px] border-black bg-white p-3 shadow-[2px_2px_0px_rgba(0,0,0,1)] flex flex-col h-full">
-              <h3 className="font-black text-sm uppercase border-b-2 border-black pb-1 mb-2 bg-comic-yellow text-black px-1">Safehouses & Gear</h3>
-              <ul className="text-xs space-y-1.5 flex-1 overflow-y-auto pr-1">
-                {assets.filter(a => a.purchased).length === 0 && upgrades.length === 0 && (
-                  <li className="text-gray-500 italic font-comic">Living on the streets.</li>
-                )}
-                {assets.filter(a => a.purchased).map(a => (
-                  <li key={a.id} className="font-bold border-l-4 border-blue-500 pl-2 py-0.5 bg-blue-50 leading-tight">
-                    {a.name} <span className="block text-[10px] text-gray-500 font-normal">{a.description}</span>
-                  </li>
-                ))}
-                {upgrades.map((u, i) => (
-                  <li key={i} className="font-bold border-l-4 border-comic-red pl-2 py-0.5 bg-red-50 leading-tight">
-                    {u.name} <span className="block text-[10px] text-gray-500 font-normal">{u.type} Upgrade</span>
-                  </li>
-                ))}
-              </ul>
+      <main className="flex-1 min-h-0 bg-[#242424] p-3 grid grid-cols-1 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_330px] gap-3 overflow-y-auto lg:overflow-hidden comic-scrollbar">
+        <aside className="order-2 lg:order-1 min-h-0 flex flex-col gap-3 lg:overflow-y-auto lg:pr-1 comic-scrollbar">
+          <section className="bg-[#343434] border-2 border-[#0E0E0E] rounded-[24px] shadow-[4px_4px_0px_#0E0E0E] p-3 shrink-0">
+            <div className="flex items-center justify-between border-b-2 border-[#515151] pb-2 mb-3">
+              <h3 className="font-black text-sm uppercase">Hero Sheet</h3>
+              <span className={`text-xs font-black rounded-full px-3 py-1 border-2 ${stats.suspicion > 80 ? 'bg-[#3B2422] text-[#FFD7D2] border-[#D85A4F]' : 'bg-[#2B2B2B] text-[#FFD21F] border-[#0E0E0E]'}`}>
+                Suspicion {stats.suspicion}%
+              </span>
             </div>
-            <div className="border-[3px] border-black bg-white p-3 shadow-[2px_2px_0px_rgba(0,0,0,1)] flex flex-col h-full">
-              <h3 className="font-black text-sm uppercase border-b-2 border-black pb-1 mb-2 bg-comic-blue text-white px-1">Allies & Contacts</h3>
-              <ul className="text-xs space-y-1.5 flex-1 overflow-y-auto pr-1">
-                {sidekicks.length === 0 && npcs.length === 0 && (
-                  <li className="text-gray-500 italic font-comic">Operating strictly solo.</li>
-                )}
-                {sidekicks.map((s, i) => (
-                  <li key={i} className="font-bold border-l-4 border-comic-yellow pl-2 py-0.5 bg-yellow-50 leading-tight">
-                    {s.name} <span className="block text-[10px] text-gray-500 font-normal">{s.specialty} Specialist (Sidekick)</span>
-                  </li>
-                ))}
-                {npcs.map((n, i) => (
-                  <li key={i} className="font-bold border-l-4 border-green-500 pl-2 py-0.5 bg-green-50 leading-tight">
-                    {n.name} <span className="block text-[10px] text-gray-500 font-normal">{n.relation} (Trust: {n.relationship}%)</span>
-                  </li>
-                ))}
-              </ul>
+            <div className="grid grid-cols-2 gap-2">
+              {statCards.map((card) => (
+                <StatCard key={card.label} {...card} />
+              ))}
             </div>
-          </div>
-        </div>
-        {nemesis && (
-          <div className="md:w-1/3 min-w-[200px]">
-            <WantedPoster nemesis={nemesis} canConfront={canConfront} onConfront={handleShowdown} />
-          </div>
-        )}
-      </div>
+          </section>
 
-      {/* ── Infinite Canvas (Virtualized) ── */}
-      <div id="history-scroll" className="flex-1 bg-paper" style={{ minHeight: '300px' }}>
-        <Virtuoso
-          ref={virtuosoRef}
-          totalCount={history.length}
-          itemContent={renderEventItem}
-          followOutput="smooth"
-          className="p-4"
-          style={{ height: '100%' }}
-        />
+          <section className="bg-[#343434] border-2 border-[#0E0E0E] rounded-[24px] shadow-[4px_4px_0px_#0E0E0E] p-3 min-h-0 flex flex-col">
+            <h3 className="font-black text-sm uppercase border-b-2 border-[#515151] pb-2 mb-3 text-[#FFD21F]">Gear & Safehouses</h3>
+            <ul className="space-y-2 min-h-0 lg:max-h-[26dvh] overflow-y-auto pr-1 comic-scrollbar">
+              {purchasedAssets.length === 0 && upgrades.length === 0 && (
+                <EmptyLine>Living on the streets.</EmptyLine>
+              )}
+              {purchasedAssets.map((asset) => (
+                <li key={asset.id} className="font-bold border-l-4 border-[#FFD21F] pl-3 py-2 bg-[#2B2B2B] rounded-r-xl text-xs leading-tight">
+                  {asset.name}
+                  <span className="block text-[10px] text-[#B8B8B0] font-normal">{asset.description}</span>
+                </li>
+              ))}
+              {upgrades.map((upgrade, index) => (
+                <li key={`${upgrade.id}-${index}`} className="font-bold border-l-4 border-[#D85A4F] pl-3 py-2 bg-[#2B2B2B] rounded-r-xl text-xs leading-tight">
+                  {upgrade.name}
+                  <span className="block text-[10px] text-[#B8B8B0] font-normal">{upgrade.type} Upgrade</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-        {suggestedActions.length > 0 && !isProcessing && (
-          <div className="p-2 animate-fade-in-up mx-4 mb-4">
-            <div className="bg-yellow-100 border-2 border-black border-dashed p-3 mb-2">
-              <p className="text-xs font-bold uppercase text-gray-500 mb-2">Narrative Choices</p>
-              <div className="space-y-2">
+          {nemesis && (
+            <div className="xl:hidden">
+              <NemesisSummaryCard
+                nemesis={nemesis}
+                canConfront={canConfront}
+                onConfront={handleShowdown}
+                onOpenDossier={() => { audio.playClick(); setActiveModal('NEMESIS_DOSSIER'); }}
+              />
+            </div>
+          )}
+        </aside>
+
+        <section className="order-1 lg:order-2 min-h-[68vh] lg:min-h-0 flex flex-col border-2 border-[#0E0E0E] bg-[#2B2B2B] rounded-[28px] shadow-[5px_5px_0px_#0E0E0E] overflow-hidden">
+          <div className="shrink-0 bg-[#3E3E3E] border-b-2 border-[#0E0E0E] px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-display text-3xl italic tracking-wide leading-none text-[#FFD21F]">Issue Desk</h3>
+              <p className="text-xs font-bold uppercase text-[#B8B8B0]">{character.universe} / {character.alignment}</p>
+            </div>
+            <span className="font-mono text-xs rounded-full bg-[#242424] border-2 border-[#0E0E0E] px-3 py-1">
+              {history.length} panels
+            </span>
+          </div>
+
+          <div className="flex-1 min-h-0 p-3 flex flex-col">
+            <CurrentPanel event={currentEvent} panelNumber={history.length || 1} onRetryImage={handleRetryPanelImage} />
+          </div>
+
+          {suggestedActions.length > 0 && !isProcessing && (
+            <div className="shrink-0 border-t-2 border-[#0E0E0E] bg-[#343434] p-3">
+              <p className="text-xs font-black uppercase text-[#FFD21F] mb-2">Narrative Choices</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                 {suggestedActions.map((action) => (
-                  <button key={action.id} onClick={() => handleAction(action)} className="w-full text-left bg-white border-2 border-black shadow-sm hover:bg-comic-yellow p-2 flex flex-col transition-colors group">
-                    <span className="font-bold text-lg font-display group-hover:underline decoration-2 text-black tracking-wide">{action.label}</span>
-                    <span className="text-xs text-gray-600 font-mono block">{action.description}</span>
+                  <button key={action.id} onClick={() => handleAction(action)} className="text-left bg-[#2B2B2B] border-2 border-[#0E0E0E] rounded-[22px] shadow-[3px_3px_0px_#0E0E0E] hover:bg-[#3E3E3E] p-4 min-h-[120px] flex flex-col transition-colors group">
+                    <span className="font-black text-sm uppercase group-hover:underline decoration-2 text-[#F4F4F0] tracking-wide leading-tight">{action.label}</span>
+                    <span className="text-sm text-[#C7C7BE] block mt-2 leading-snug">{previewText(action.description, 140)}</span>
                   </button>
                 ))}
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {isProcessing && (
-          <div className="flex justify-center p-4">
-            <div className="font-display font-bold animate-pulse bg-yellow-200 border-4 border-black px-6 py-4 shadow-comic text-black text-xl">
-              INKING NEXT PANEL...
+          {isProcessing && (
+            <div className="shrink-0 flex justify-center border-t-2 border-[#0E0E0E] bg-[#343434] p-4">
+              <div className="rounded-full font-black animate-pulse bg-[#FFD21F] border-2 border-[#0E0E0E] px-6 py-3 shadow-[3px_3px_0px_#0E0E0E] text-[#161616] text-base">
+                INKING NEXT PANEL...
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </section>
 
-      {/* ── Controls ── */}
-      <div id="controls-panel" className="bg-white border-t-4 border-black sticky bottom-0 z-20 p-2 shadow-[0_-4px_10px_rgba(0,0,0,0.1)]">
-        <div className="flex -mt-6 mb-2 mx-4">
+        <aside className="order-3 min-h-0 hidden xl:flex flex-col gap-3 overflow-y-auto pr-1 comic-scrollbar">
+          {nemesis && (
+            <NemesisSummaryCard
+              nemesis={nemesis}
+              canConfront={canConfront}
+              onConfront={handleShowdown}
+              onOpenDossier={() => { audio.playClick(); setActiveModal('NEMESIS_DOSSIER'); }}
+            />
+          )}
+
+          <RecentBeats events={recentEvents} />
+
+          <section className="bg-[#343434] border-2 border-[#0E0E0E] rounded-[24px] shadow-[4px_4px_0px_#0E0E0E] p-3 shrink-0">
+            <h3 className="font-black text-sm uppercase border-b-2 border-[#515151] pb-2 mb-3 text-[#FFD21F]">Allies & Contacts</h3>
+            <ul className="space-y-2 max-h-40 overflow-y-auto pr-1 comic-scrollbar">
+              {sidekicks.length === 0 && npcs.length === 0 && (
+                <EmptyLine>Operating strictly solo.</EmptyLine>
+              )}
+              {sidekicks.map((sidekick, index) => (
+                <li key={`${sidekick.id}-${index}`} className="font-bold border-l-4 border-[#FFD21F] pl-3 py-2 bg-[#2B2B2B] rounded-r-xl text-xs leading-tight">
+                  {sidekick.name}
+                  <span className="block text-[10px] text-[#B8B8B0] font-normal">{sidekick.specialty} Specialist</span>
+                </li>
+              ))}
+              {npcs.map((npc, index) => (
+                <li key={`${npc.id}-${index}`} className="font-bold border-l-4 border-[#8EA0AB] pl-3 py-2 bg-[#2B2B2B] rounded-r-xl text-xs leading-tight">
+                  {npc.name}
+                  <span className="block text-[10px] text-[#B8B8B0] font-normal">{npc.relation} (Trust: {npc.relationship}%)</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </aside>
+      </main>
+
+      <footer id="controls-panel" className="shrink-0 bg-[#202020] border-t-2 border-[#0E0E0E] z-20 p-3 shadow-[0_-8px_20px_rgba(0,0,0,0.35)]">
+        <div className="flex mb-3">
           <button
             onClick={() => { setActiveTab('CIVILIAN'); audio.playClick(); }}
-            className={`flex-1 py-2 font-black border-2 border-black transition-transform ${activeTab === 'CIVILIAN' ? 'bg-gray-200 -translate-y-1 shadow-[4px_-4px_0px_0px_rgba(0,0,0,1)] text-black' : 'bg-white translate-y-2 text-gray-500'}`}
+            className={`flex-1 py-2 font-black border-2 border-[#0E0E0E] rounded-l-full transition-transform ${activeTab === 'CIVILIAN' ? 'bg-[#FFD21F] -translate-y-1 shadow-[3px_3px_0px_#0E0E0E] text-[#161616]' : 'bg-[#343434] text-[#B8B8B0]'}`}
           >
             {character.alignment === Alignment.VILLAIN ? 'CRIMINAL LIFE' : 'CIVILIAN LIFE'}
           </button>
           <button
             onClick={() => { setActiveTab('HERO'); audio.playClick(); }}
-            className={`flex-1 py-2 font-black border-2 border-black transition-transform ${activeTab === 'HERO' ? 'bg-comic-blue text-white -translate-y-1 shadow-[4px_-4px_0px_0px_rgba(0,0,0,1)]' : 'bg-white translate-y-2 text-gray-500'}`}
+            className={`flex-1 py-2 font-black border-2 border-[#0E0E0E] rounded-r-full transition-transform ${activeTab === 'HERO' ? 'bg-[#FFD21F] text-[#161616] -translate-y-1 shadow-[3px_3px_0px_#0E0E0E]' : 'bg-[#343434] text-[#B8B8B0]'}`}
           >
             {character.alignment === Alignment.VILLAIN ? 'VILLAINY' : 'HERO DUTIES'}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 p-2">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           {activeTab === 'CIVILIAN'
-            ? actions.civilian.map(action => (
+            ? actions.civilian.map((action) => (
                 <Button key={action.id} variant="civilian" onClick={() => handleAction(action)} disabled={isProcessing} className="text-xs">{action.label}</Button>
               ))
-            : actions.hero.map(action => (
+            : actions.hero.map((action) => (
                 <Button key={action.id} variant="hero" onClick={() => handleAction(action)} disabled={isProcessing} className="text-xs">{action.label}</Button>
               ))
           }
         </div>
-      </div>
+      </footer>
     </div>
   );
 };

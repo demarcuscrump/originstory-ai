@@ -1,19 +1,73 @@
 import OpenAI from 'openai';
 import { Character, GameAction, GameEvent, Stats, ActionCategory, Nemesis, Upgrade, Crisis, NPC, MinorVillain, Sidekick, Alignment, OriginArchetype, IncitingIncident, UniverseTone } from "../types";
+import { getResolvedAiSettings, hasOpenRouterKey } from './aiSettings';
 
-// Initialize OpenRouter Client via OpenAI SDK
-const ai = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: import.meta.env.VITE_OPENROUTER_API_KEY || "dummy", // Prevents crash if not set, but won't work
-  dangerouslyAllowBrowser: true, // Required for Vite/React client-side calls
-  defaultHeaders: {
-    "HTTP-Referer": window.location.href, // Recommended by OpenRouter
-    "X-Title": "Origin Story", // Recommended by OpenRouter
-  }
+const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
+
+const getReferer = () => typeof window !== 'undefined' ? window.location.href : 'http://localhost';
+
+const getOpenRouterHeaders = () => ({
+  "HTTP-Referer": getReferer(),
+  "X-Title": "Origin Story",
 });
 
-const TEXT_MODEL = import.meta.env.VITE_OPENROUTER_TEXT_MODEL || 'anthropic/claude-3.5-haiku';
-const IMAGE_MODEL = import.meta.env.VITE_OPENROUTER_IMAGE_MODEL || 'openai/gpt-5.4-image-2';
+const getOpenRouterClient = () => {
+  const { openRouterApiKey } = getResolvedAiSettings();
+
+  return new OpenAI({
+    baseURL: OPENROUTER_BASE_URL,
+    apiKey: openRouterApiKey || "missing-key",
+    dangerouslyAllowBrowser: true,
+    defaultHeaders: getOpenRouterHeaders(),
+  });
+};
+
+const getImageModalities = (model: string) =>
+  model.startsWith('black-forest-labs/flux') ? ['image'] : ['image', 'text'];
+
+const extractGeneratedImageUrl = (data: any): string | undefined => {
+  const message = data.choices?.[0]?.message;
+  const image = message?.images?.[0];
+  const imageUrl = image?.image_url?.url || image?.imageUrl?.url;
+  if (imageUrl) return imageUrl;
+
+  const content = message?.content;
+  if (typeof content !== 'string') return undefined;
+
+  const urlMatch = content.match(/!\[.*?\]\((.*?)\)/);
+  if (urlMatch?.[1]) return urlMatch[1];
+  if (content.startsWith("http") || content.startsWith("data:image")) return content.trim();
+  return undefined;
+};
+
+const postImageGeneration = async (settings: ReturnType<typeof getResolvedAiSettings>, prompt: string, aspectRatio: string) => {
+  const response = await fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${settings.openRouterApiKey}`,
+      "Content-Type": "application/json",
+      ...getOpenRouterHeaders()
+    },
+    body: JSON.stringify({
+      model: settings.imageModel,
+      messages: [{ role: "user", content: prompt }],
+      modalities: getImageModalities(settings.imageModel),
+      image_config: {
+        aspect_ratio: aspectRatio,
+        image_size: "1K",
+      },
+      stream: false,
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.warn("OpenRouter image generation failed.", response.status, errorText);
+    return undefined;
+  }
+
+  return extractGeneratedImageUrl(await response.json());
+};
 
 // Safety wrapper to prevent UI crashes if AI fails
 const safeJSONParse = (text: string, fallback: any, expectedType: 'ARRAY' | 'OBJECT' | 'ANY' = 'ANY') => {
@@ -31,7 +85,7 @@ const safeJSONParse = (text: string, fallback: any, expectedType: 'ARRAY' | 'OBJ
 };
 
 export const analyzeCharacterConcept = async (concept: string): Promise<Partial<Character> | null> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY || !concept) return null;
+  if (!hasOpenRouterKey() || !concept) return null;
 
   const prompt = `
     Analyze this comic book character concept: "${concept}".
@@ -49,8 +103,8 @@ export const analyzeCharacterConcept = async (concept: string): Promise<Partial<
   `;
 
   try {
-    const response = await ai.chat.completions.create({
-      model: TEXT_MODEL,
+    const response = await getOpenRouterClient().chat.completions.create({
+      model: getResolvedAiSettings().textModel,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
     });
@@ -76,7 +130,7 @@ export const generateNarrative = async (
   recentHistory: GameEvent[],
   nemesis?: Nemesis | null
 ): Promise<string> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "The multiverse is silent (API Key Missing).";
+  if (!hasOpenRouterKey()) return "The multiverse is silent (API Key Missing).";
 
   const nemesisContext = nemesis && !nemesis.defeated
     ? `Rival: ${nemesis.name} (${nemesis.schemeProgress}% scheme progress).`
@@ -97,8 +151,8 @@ export const generateNarrative = async (
   const historyContext = recentHistory.slice(-2).map(e => e.text).join("\n");
 
   try {
-    const response = await ai.chat.completions.create({
-      model: TEXT_MODEL,
+    const response = await getOpenRouterClient().chat.completions.create({
+      model: getResolvedAiSettings().textModel,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: `Context:\n${historyContext}\n\nOutcome for: ${action.label}` }
@@ -113,7 +167,7 @@ export const generateNarrative = async (
 };
 
 export const generateArcEvent = async (character: Character, arcType: string, nemesis?: Nemesis | null): Promise<string> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "A major event occurs, but the pages are torn.";
+    if (!hasOpenRouterKey()) return "A major event occurs, but the pages are torn.";
 
     const prompt = `
       Write a MAJOR NARRATIVE EVENT (Max 80 words).
@@ -124,8 +178,8 @@ export const generateArcEvent = async (character: Character, arcType: string, ne
     `;
 
     try {
-        const response = await ai.chat.completions.create({
-            model: TEXT_MODEL,
+        const response = await getOpenRouterClient().chat.completions.create({
+            model: getResolvedAiSettings().textModel,
             messages: [{ role: "user", content: prompt }],
         });
         return response.choices[0].message.content || "The plot thickens...";
@@ -135,7 +189,7 @@ export const generateArcEvent = async (character: Character, arcType: string, ne
 };
 
 export const generateOriginStory = async (character: Character): Promise<string> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "Manual Override: Character created without origin story.";
+    if (!hasOpenRouterKey()) return "Manual Override: Character created without origin story.";
 
     const powerInstruction = character.specificPower 
         ? `Powers: "${character.specificPower}"` 
@@ -155,8 +209,8 @@ export const generateOriginStory = async (character: Character): Promise<string>
     `;
 
     try {
-        const response = await ai.chat.completions.create({
-            model: TEXT_MODEL,
+        const response = await getOpenRouterClient().chat.completions.create({
+            model: getResolvedAiSettings().textModel,
             messages: [{ role: "user", content: prompt }],
         });
         return response.choices[0].message.content || "The ink spilled... origin story unavailable.";
@@ -167,10 +221,10 @@ export const generateOriginStory = async (character: Character): Promise<string>
 };
 
 export const generateRetconNarrative = async (character: Character, causeOfDeath: string): Promise<string> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "You wake up. It was a dream.";
+    if (!hasOpenRouterKey()) return "You wake up. It was a dream.";
     try {
-        const response = await ai.chat.completions.create({
-            model: TEXT_MODEL,
+        const response = await getOpenRouterClient().chat.completions.create({
+            model: getResolvedAiSettings().textModel,
             messages: [{ role: "user", content: `Write a 50-word comic book RETCON explaining why ${character.heroName} didn't actually die from ${causeOfDeath}. Tone: ${character.universe}. CRITICAL INSTRUCTION: Return ONLY the raw story text. Do not include conversational filler.` }],
         });
         return response.choices[0].message.content || "You survived somehow.";
@@ -178,14 +232,14 @@ export const generateRetconNarrative = async (character: Character, causeOfDeath
 };
 
 export const generateSidekick = async (character: Character): Promise<Sidekick | null> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return null;
+    if (!hasOpenRouterKey()) return null;
     const prompt = `Create a sidekick/minion for ${character.heroName} (${character.universe}). 
     Return ONLY JSON matching:
     { "name": "String", "realName": "String", "archetype": "String", "specialty": "COMBAT" | "INTEL" | "SUPPORT", "description": "String" }`;
 
     try {
-        const response = await ai.chat.completions.create({
-            model: TEXT_MODEL,
+        const response = await getOpenRouterClient().chat.completions.create({
+            model: getResolvedAiSettings().textModel,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" }
         });
@@ -206,7 +260,7 @@ export const generateSidekick = async (character: Character): Promise<Sidekick |
 };
 
 export const generateNemesis = async (character: Character): Promise<Nemesis | null> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return null;
+  if (!hasOpenRouterKey()) return null;
 
   const prompt = `
     Create an ARCHNEMESIS for ${character.heroName} (${character.alignment}).
@@ -217,8 +271,8 @@ export const generateNemesis = async (character: Character): Promise<Nemesis | n
   `;
 
   try {
-    const response = await ai.chat.completions.create({
-      model: TEXT_MODEL,
+    const response = await getOpenRouterClient().chat.completions.create({
+      model: getResolvedAiSettings().textModel,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
     });
@@ -240,90 +294,32 @@ export const generateNemesis = async (character: Character): Promise<Nemesis | n
 };
 
 export const generateEntityImage = async (name: string, description: string, type: 'VILLAIN' | 'HERO', universe: string): Promise<string | undefined> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return undefined;
-    const prompt = `Comic book style portrait of ${name}, ${description}. Style: ${universe}. White background. No text.`;
+    if (!hasOpenRouterKey()) return undefined;
+    const settings = getResolvedAiSettings();
+    const prompt = `Comic book style portrait of ${name}, ${description}. Style: ${universe}. White background. No words, no letters, no logos, no captions, no typography, no numbers, no watermarks, no readable markings anywhere.`;
     
     try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": window.location.href,
-                "X-Title": "Origin Story"
-            },
-            body: JSON.stringify({
-                model: IMAGE_MODEL,
-                messages: [{ role: "user", content: prompt }],
-                modalities: ["image", "text"]
-            })
-        });
-        const data = await response.json();
-        
-        // OpenRouter image models return image URLs or base64 embedded in markdown, or directly, or in an images array
-        const message = data.choices?.[0]?.message;
-        
-        if (message?.images?.[0]?.image_url?.url) {
-            return message.images[0].image_url.url;
-        }
-        
-        const content = message?.content;
-        if (content) {
-             // Basic extraction of a URL if it returns markdown like ![alt](url)
-             const urlMatch = content.match(/!\[.*?\]\((.*?)\)/);
-             if (urlMatch && urlMatch[1]) return urlMatch[1];
-             
-             // If it returns raw URL
-             if (content.startsWith("http") || content.startsWith("data:image")) return content.trim();
-        }
-        return undefined;
+        return postImageGeneration(settings, prompt, "1:1");
     } catch (e) { return undefined; }
 };
 
 export const generatePanelImage = async (narrative: string, character: Character): Promise<string | undefined> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return undefined;
-  const prompt = `Comic panel: ${narrative}. Character: ${character.heroName}, wearing ${character.costume}. Style: ${character.universe}. No text.`;
+  if (!hasOpenRouterKey()) return undefined;
+  const settings = getResolvedAiSettings();
+  const prompt = `Wide 16:9 full-bleed comic panel illustration for this story beat: ${narrative}. Character: ${character.heroName}, wearing ${character.costume}. Style: ${character.universe}. Cinematic composition, centered subject, detailed background, comic ink and color rendering. Absolutely no words, no letters, no city-name titles, no shop signs, no logos, no captions, no speech bubbles, no typography, no numbers, no watermarks, no readable markings anywhere in the image. Blank signs and blank billboards only.`;
   try {
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                "Authorization": `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": window.location.href,
-                "X-Title": "Origin Story"
-            },
-            body: JSON.stringify({
-                model: IMAGE_MODEL,
-                messages: [{ role: "user", content: prompt }],
-                modalities: ["image", "text"]
-            })
-        });
-        const data = await response.json();
-        
-        const message = data.choices?.[0]?.message;
-        
-        if (message?.images?.[0]?.image_url?.url) {
-            return message.images[0].image_url.url;
-        }
-        
-        const content = message?.content;
-        if (content) {
-             const urlMatch = content.match(/!\[.*?\]\((.*?)\)/);
-             if (urlMatch && urlMatch[1]) return urlMatch[1];
-             if (content.startsWith("http") || content.startsWith("data:image")) return content.trim();
-        }
-        return undefined;
+        return postImageGeneration(settings, prompt, "16:9");
   } catch (error) { return undefined; }
 };
 
 export const generateMinorVillain = async (character: Character): Promise<MinorVillain | null> => {
-    if (!import.meta.env.VITE_OPENROUTER_API_KEY) return null;
+    if (!hasOpenRouterKey()) return null;
     const prompt = `Create a minor 'Villain of the Week' (or 'Hero of the Week' if player is villain) for ${character.heroName} (${character.alignment}). 
     Return ONLY JSON: { "name": "String", "gimmick": "String", "powerLevel": 20, "loot": "INTEL" | "WEALTH" | "REP" }`;
     
     try {
-        const response = await ai.chat.completions.create({
-            model: TEXT_MODEL,
+        const response = await getOpenRouterClient().chat.completions.create({
+            model: getResolvedAiSettings().textModel,
             messages: [{ role: "user", content: prompt }],
             response_format: { type: "json_object" }
         });
@@ -340,31 +336,31 @@ export const generateMinorVillain = async (character: Character): Promise<MinorV
 };
 
 export const generateShowdownNarrative = async (character: Character, nemesis: Nemesis, isVictory: boolean): Promise<string> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "The battle ends abruptly.";
+  if (!hasOpenRouterKey()) return "The battle ends abruptly.";
   const prompt = `Describe final battle between ${character.heroName} and ${nemesis.name}. Result: ${isVictory ? "Protagonist Wins" : "Protagonist Loses"}. Max 60 words. CRITICAL INSTRUCTION: Return ONLY the raw story text. Do not include conversational filler.`;
   try {
-    const response = await ai.chat.completions.create({ model: TEXT_MODEL, messages: [{ role: "user", content: prompt }] });
+    const response = await getOpenRouterClient().chat.completions.create({ model: getResolvedAiSettings().textModel, messages: [{ role: "user", content: prompt }] });
     return response.choices[0].message.content || "The dust settles.";
   } catch (error) { return "Battle data lost."; }
 };
 
 export const generateHeadline = async (character: Character, stats: Stats): Promise<string> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "EXTRA! EXTRA!";
+  if (!hasOpenRouterKey()) return "EXTRA! EXTRA!";
   const prompt = `3-word newspaper headline about ${character.heroName}. Suspicion: ${stats.suspicion}%. CRITICAL INSTRUCTION: Return ONLY the raw headline text, no filler.`;
   try {
-    const response = await ai.chat.completions.create({ model: TEXT_MODEL, messages: [{ role: "user", content: prompt }] });
+    const response = await getOpenRouterClient().chat.completions.create({ model: getResolvedAiSettings().textModel, messages: [{ role: "user", content: prompt }] });
     return response.choices[0].message.content?.replace(/"/g, '') || "EXTRA! EXTRA!";
   } catch (error) { return "PRINTING ERROR"; }
 };
 
 export const generateSuggestedActions = async (narrative: string, character: Character): Promise<GameAction[]> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return [];
+  if (!hasOpenRouterKey()) return [];
   const prompt = `Suggest 3 actions for ${character.heroName} (${character.alignment}) based on: "${narrative}". 
   Return ONLY a JSON object matching this structure: { "actions": [ { "label": "String", "description": "String", "category": "Hero" | "Civilian" } ] }`;
 
   try {
-    const response = await ai.chat.completions.create({
-      model: TEXT_MODEL,
+    const response = await getOpenRouterClient().chat.completions.create({
+      model: getResolvedAiSettings().textModel,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" } // OpenRouter usually expects the prompt to just be clear. We will parse it.
     });
@@ -391,13 +387,13 @@ export const generateSuggestedActions = async (narrative: string, character: Cha
 };
 
 export const generateUpgrades = async (character: Character): Promise<Upgrade[]> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return [];
+  if (!hasOpenRouterKey()) return [];
   const prompt = `Create 3 HQ upgrades for ${character.heroName} (${character.origin}). 
   Return ONLY a JSON object matching this structure: { "upgrades": [ { "type": "COMFORT"|"INTEL"|"WEAPON", "name": "String", "description": "String" } ] }`;
 
   try {
-    const response = await ai.chat.completions.create({
-      model: TEXT_MODEL,
+    const response = await getOpenRouterClient().chat.completions.create({
+      model: getResolvedAiSettings().textModel,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" }
     });
@@ -418,13 +414,13 @@ export const generateUpgrades = async (character: Character): Promise<Upgrade[]>
 };
 
 export const generateCrisis = async (character: Character): Promise<Crisis | null> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return null;
+  if (!hasOpenRouterKey()) return null;
   const prompt = `Create a Crisis Event for ${character.heroName} (${character.alignment}). 
   Return ONLY JSON: { "title": "String", "description": "String", "options": [ { "label": "String", "description": "String", "type": "ALTRUISTIC" | "PRAGMATIC" } ] }`;
 
   try {
-     const response = await ai.chat.completions.create({
-       model: TEXT_MODEL,
+     const response = await getOpenRouterClient().chat.completions.create({
+       model: getResolvedAiSettings().textModel,
        messages: [{ role: "user", content: prompt }],
        response_format: { type: "json_object" }
      });
@@ -441,13 +437,13 @@ export const generateCrisis = async (character: Character): Promise<Crisis | nul
 };
 
 export const generateNPCs = async (character: Character): Promise<NPC[]> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return [];
+  if (!hasOpenRouterKey()) return [];
   const prompt = `Create 2 supporting NPCs for ${character.heroName} (${character.alignment}). 
   Return ONLY a JSON object matching this structure: { "npcs": [ { "name": "String", "relation": "String", "description": "String", "bonusType": "SANITY" | "WEALTH" | "JUSTICE" } ] }`;
 
   try {
-     const response = await ai.chat.completions.create({
-       model: TEXT_MODEL,
+     const response = await getOpenRouterClient().chat.completions.create({
+       model: getResolvedAiSettings().textModel,
        messages: [{ role: "user", content: prompt }],
        response_format: { type: "json_object" }
      });
@@ -467,10 +463,10 @@ export const generateNPCs = async (character: Character): Promise<NPC[]> => {
 };
 
 export const generateNewCostume = async (character: Character, stats: Stats): Promise<string> => {
-  if (!import.meta.env.VITE_OPENROUTER_API_KEY) return "A basic spandex suit.";
+  if (!hasOpenRouterKey()) return "A basic spandex suit.";
   const prompt = `Design a costume for ${character.heroName} (${character.universe}). Max 20 words. CRITICAL INSTRUCTION: Return ONLY the raw description text. Do not include conversational filler.`;
   try {
-    const response = await ai.chat.completions.create({ model: TEXT_MODEL, messages: [{ role: "user", content: prompt }] });
+    const response = await getOpenRouterClient().chat.completions.create({ model: getResolvedAiSettings().textModel, messages: [{ role: "user", content: prompt }] });
     return response.choices[0].message.content?.trim() || "A classic superhero costume.";
   } catch (error) { return "A makeshift vigilante outfit."; }
 };

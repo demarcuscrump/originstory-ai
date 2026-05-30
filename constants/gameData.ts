@@ -1,4 +1,4 @@
-import { GameAction, ActionCategory, Stats, BattlePassReward, Asset, Alignment, ThemeVariant } from '../types';
+import { GameAction, ActionCategory, Stats, BattlePassReward, Asset, Alignment } from '../types';
 
 export const SAVE_VERSION = "2.0.0";
 
@@ -106,10 +106,10 @@ export const STANDARD_OUTCOMES: Record<string, string[]> = {
 };
 
 export const INITIAL_BP_REWARDS: BattlePassReward[] = [
-  { level: 1, xpRequired: 50, freeReward: { type: 'RESOURCE', label: '+20 Wealth', value: 20, resource: 'wealth' }, premiumReward: { type: 'COSMETIC', label: 'Unlock Noir Mode', themeId: 'NOIR' }, isClaimedFree: false, isClaimedPremium: false },
-  { level: 2, xpRequired: 150, freeReward: { type: 'RESOURCE', label: '+1 Retcon Point', value: 1, resource: 'retconPoints' }, premiumReward: { type: 'CONTENT', label: 'Mystery Crate (+50 Glory)', themeId: 'DEFAULT' }, isClaimedFree: false, isClaimedPremium: false },
-  { level: 3, xpRequired: 300, freeReward: { type: 'RESOURCE', label: '+50 Glory', value: 50, resource: 'glory' }, premiumReward: { type: 'COSMETIC', label: 'Unlock Retro Mode', themeId: 'RETRO' }, isClaimedFree: false, isClaimedPremium: false },
-  { level: 4, xpRequired: 500, freeReward: { type: 'RESOURCE', label: '+20 Justice', value: 20, resource: 'justice' }, premiumReward: { type: 'COSMETIC', label: 'Unlock Neon Mode', themeId: 'NEON' }, isClaimedFree: false, isClaimedPremium: false },
+  { level: 1, xpRequired: 50, freeReward: { type: 'RESOURCE', label: '+20 Wealth', value: 20, resource: 'wealth' }, premiumReward: { type: 'COSMETIC', label: 'Variant Cover: Noir' }, isClaimedFree: false, isClaimedPremium: false },
+  { level: 2, xpRequired: 150, freeReward: { type: 'RESOURCE', label: '+1 Retcon Point', value: 1, resource: 'retconPoints' }, premiumReward: { type: 'CONTENT', label: 'Mystery Crate (+50 Glory)' }, isClaimedFree: false, isClaimedPremium: false },
+  { level: 3, xpRequired: 300, freeReward: { type: 'RESOURCE', label: '+50 Glory', value: 50, resource: 'glory' }, premiumReward: { type: 'COSMETIC', label: 'Variant Cover: Retro' }, isClaimedFree: false, isClaimedPremium: false },
+  { level: 4, xpRequired: 500, freeReward: { type: 'RESOURCE', label: '+20 Justice', value: 20, resource: 'justice' }, premiumReward: { type: 'COSMETIC', label: 'Variant Cover: Neon' }, isClaimedFree: false, isClaimedPremium: false },
 ];
 
 export const INITIAL_ASSETS: Asset[] = [
@@ -180,17 +180,6 @@ export const getActionsForAlignment = (alignment?: Alignment): { civilian: GameA
       { id: 'investigate', label: 'Investigate', category: ActionCategory.HERO, description: 'Find the Nemesis.', effect: { justice: 15, suspicion: 15, sanity: -10 } },
     ],
   };
-};
-
-export const getThemeForUniverse = (universe: string): ThemeVariant => {
-  const darkThemes = ['Grim/Dark', 'Street/Noir', 'Horror/Supernatural'];
-  const retroThemes = ['Golden Age', 'Silver Age', 'Bronze Age', 'Post-Apocalyptic'];
-  const neonThemes = ['Future Cyberpunk', 'Cosmic'];
-
-  if (darkThemes.includes(universe)) return 'NOIR';
-  if (retroThemes.includes(universe)) return 'RETRO';
-  if (neonThemes.includes(universe)) return 'NEON';
-  return 'DEFAULT';
 };
 
 export const clampStat = (value: number, min = 0, max = 100): number =>

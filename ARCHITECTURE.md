@@ -1,15 +1,16 @@
 # Origin Story AI — Architecture
 
-Origin Story is a React 19 + TypeScript infinite-canvas comic-book RPG that blends a **deterministic** game engine with **generative AI** for narrative and art. The architecture was refactored from a monolithic `App.tsx` (1 700 LOC) into a modular layer cake of store → hooks → pages → components.
+Origin Story is a React 19 + TypeScript comic-book RPG that blends a **deterministic** game engine with **generative AI** for narrative and art. The architecture was refactored from a monolithic `App.tsx` (1 700 LOC) into a modular layer cake of store → hooks → pages → components.
 
 ---
 
 ## Core Principles
 
 1. **Hybrid AI Loop** — cheap deterministic actions (~5 ms) for routine play; rich generative calls for milestone events and boss fights.
-2. **Infinite Canvas** — a virtualized, vertically scrolling event log (`react-virtuoso`) acting as the "issues" of a comic book.
+2. **Current-Panel Cockpit** — the active story beat, generated art, and next choices stay visible together; older beats become compact context or Long Box archives.
 3. **Stat-Driven Resolution** — every action resolves against 6 core stats: **Wealth · Sanity · Justice · Glory · Suspicion · Retcon Points**.
 4. **IndexedDB Persistence** — game state auto-saves via `localforage` (backed by IndexedDB), eliminating the 5 MB `localStorage` ceiling.
+5. **Fixed Visual Theme** — universe tone affects narrative, not the global UI palette; the app uses a consistent dark comic-console interface for readability.
 
 ---
 
@@ -33,16 +34,18 @@ OriginStoryAI/
 ├── pages/
 │   ├── TitleScreen.tsx
 │   ├── CreationScreen.tsx
-│   ├── PlayingScreen.tsx   # Virtualized infinite canvas + modals + controls
+│   ├── PlayingScreen.tsx   # Current-panel cockpit + modals + controls
 │   ├── GameOverScreen.tsx
 │   └── VictoryScreen.tsx
 │
-├── components/             # Presentational UI (Button, EventPanel, StatRadar, modals…)
+├── components/             # Presentational UI (Button, modals, dossiers)
 ├── services/
-│   ├── aiService.ts        # OpenRouter API (Claude 3.5 Haiku + GPT-5.4 Image)
+│   ├── aiService.ts        # OpenRouter API calls and fallbacks
+│   ├── aiSettings.ts       # BYOK settings, model defaults, credential resolution
 │   └── audioService.ts     # Web Audio API sound effects
 │
 └── __tests__/
+    ├── aiSettings.test.ts  # BYOK save, clear, and environment fallback
     ├── gameData.test.ts    # Stat clamping, outcomes, alignment actions
     └── useGameStore.test.ts # Store init, setters, reset
 ```
@@ -103,7 +106,28 @@ This keeps page components purely presentational.
 |------|---------|-------|---------|
 | **Deterministic** | Standard actions (Patrol, Day Job, Rest…) | Local `STANDARD_OUTCOMES` dictionary | ~5 ms |
 | **Generative Text** | Arc events, Crises, Showdowns, Origins | `anthropic/claude-3.5-haiku` via OpenRouter | 1–3 s |
-| **Generative Image** | Panel illustrations, entity portraits | `openai/gpt-5.4-image-2` via OpenRouter | 45–60 s (async) |
+| **Generative Image** | Panel illustrations, entity portraits | `black-forest-labs/flux.2-klein-4b` via OpenRouter | Provider-dependent fast mode (async) |
+
+### BYOK Credential Flow
+
+Origin Story supports browser BYOK for portfolio play. `components/AiSettingsModal.tsx`
+lets a player paste an OpenRouter key and optional model IDs. `services/aiSettings.ts`
+stores those values in browser `localStorage`, resolves them before every AI call,
+and falls back to `VITE_OPENROUTER_*` development environment variables when no
+browser key is saved.
+
+Image generation uses OpenRouter's chat completions image pathway. Flux models
+are treated as image-only providers and are requested with `modalities: ["image"]`;
+mixed-output image models can still use `["image", "text"]`.
+
+The game does not require a key to start. If no key is available, deterministic
+actions, stat changes, archives, legacy, and fallback story copy continue to work.
+AI-assisted origins, dynamic character analysis, NPCs, nemeses, suggested actions,
+and images are skipped or replaced with safe fallback text.
+
+For a public hosted version, the BYOK path is acceptable for a portfolio demo.
+A paid production release should move OpenRouter calls behind a server proxy or
+gateway so rate limits, abuse controls, and key handling can be managed centrally.
 
 ### Anti-Hallucination: Safe JSON Parsing
 
@@ -113,8 +137,10 @@ All AI prompts enforce **object wrapping** — the LLM is instructed to return `
 
 ## Performance
 
-- **List Virtualization** — `react-virtuoso` renders only visible event panels in the infinite canvas, keeping DOM node count constant regardless of game length.
-- **Async Image Loading** — panel images generate in the background; a spinner placeholder keeps the UI responsive.
+- **Output-First Play Surface** — the latest story beat is rendered as one stable panel, avoiding nested scrollbars during normal play.
+- **Full-Bleed Panel Rendering** — generated panel art uses `object-cover` in a stable frame, with wide-panel prompts to reduce letterboxing and preserve a comic-page feel.
+- **Async Image Loading** — panel images generate in the background; a spinner placeholder keeps the UI responsive without blocking choices.
+- **Visible Image Failures** — if a provider returns no image, the panel keeps a readable fallback state with a retry affordance instead of silently collapsing the art frame.
 - **IndexedDB Persistence** — `localforage` auto-selects the best available driver (IndexedDB → WebSQL → localStorage), eliminating quota errors.
 
 ---
@@ -123,6 +149,7 @@ All AI prompts enforce **object wrapping** — the LLM is instructed to return `
 
 Vitest tests cover:
 
+- `aiSettings` — browser BYOK persistence, model defaults, and environment fallback.
 - `clampStat` / `clampAllStats` — boundary clamping for all stat fields.
 - `getActionOutcome` — deterministic outcome pool selection and fallback.
 - `getJusticeLabel` / `getActionsForAlignment` — alignment-specific label and action generation.

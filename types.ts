@@ -116,6 +116,7 @@ export interface GameEvent {
   imagePrompt?: string; 
   imageUrl?: string; // New field for generated image
   isGeneratingImage?: boolean; // Track if image is currently generating
+  imageError?: string; // Track non-fatal image generation failures
   timestamp: number;
   statsChanged?: Partial<Stats>;
 }
@@ -180,14 +181,11 @@ export interface ArchivedHero {
   coverImage?: string; 
 }
 
-// PRD 2.2.4 Pull List
-export type ThemeVariant = 'DEFAULT' | 'NOIR' | 'RETRO' | 'NEON';
-
 export interface BattlePassReward {
     level: number;
     xpRequired: number;
     freeReward: { type: 'RESOURCE' | 'CURRENCY'; label: string; value: number; resource?: keyof Stats };
-    premiumReward: { type: 'COSMETIC' | 'CONTENT'; label: string; themeId?: ThemeVariant; scenarioId?: string };
+    premiumReward: { type: 'COSMETIC' | 'CONTENT'; label: string; scenarioId?: string };
     isClaimedFree: boolean;
     isClaimedPremium: boolean;
 }

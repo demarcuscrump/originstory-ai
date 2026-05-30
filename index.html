@@ -14,51 +14,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Comic+Neue:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'comic-yellow': '#F9F871',
-              'comic-red': '#FF6B6B',
-              'comic-blue': '#4D96FF',
-              'comic-black': '#1a1a1a',
-              'paper': '#ffffff',
-            },
-            fontFamily: {
-              sans: ['"Comic Neue"', 'cursive', 'sans-serif'],
-              display: ['"Bangers"', 'cursive'],
-              comic: ['"Comic Neue"', 'cursive', 'sans-serif'], 
-            },
-            boxShadow: {
-              'comic': '4px 4px 0px 0px #000000',
-              'comic-lg': '8px 8px 0px 0px #000000',
-            },
-            animation: {
-              'fade-in': 'fadeIn 0.5s ease-in-out',
-              'fade-in-up': 'fadeInUp 0.5s ease-out',
-              'float': 'float 8s ease-in-out infinite',
-              'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-            },
-            keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(10px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-8px)' },
-              }
-            }
-          }
-        }
-      }
-    </script>
     <link rel="stylesheet" href="/index.css">
   </head>
   <body>

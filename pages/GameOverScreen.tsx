@@ -8,10 +8,10 @@ export const GameOverScreen: React.FC = () => {
   const { handleRetcon, handleLegacy, handleReset } = useGameActions();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white p-8 text-center border-8 border-comic-red">
-      <h1 className="text-8xl font-black text-comic-red mb-4 uppercase tracking-tighter font-display">GAME OVER</h1>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#242424] text-[#F4F4F0] p-8 text-center border-8 border-[#D85A4F]">
+      <h1 className="text-8xl font-black text-[#D85A4F] mb-4 uppercase tracking-wide font-display">GAME OVER</h1>
       <p className="text-2xl mb-2 font-bold uppercase">{gameOverReason}</p>
-      <p className="text-sm font-mono text-gray-400 mb-8">The story ends here...</p>
+      <p className="text-sm font-mono text-[#B8B8B0] mb-8">The story ends here...</p>
 
       <div className="flex flex-col gap-4 w-full max-w-md">
         {stats.retconPoints > 0 && (

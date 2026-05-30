@@ -4,7 +4,7 @@ import localforage from 'localforage';
 import {
   Character, Stats, GameEvent, GameAction, Nemesis, Upgrade,
   Crisis, CrisisOption, NPC, ArchivedHero, MinorVillain,
-  Sidekick, BattlePassReward, ThemeVariant, Asset, LegacyData,
+  Sidekick, BattlePassReward, Asset, LegacyData,
 } from '../types';
 import { INITIAL_STATS, INITIAL_BP_REWARDS, INITIAL_ASSETS, SAVE_VERSION } from '../constants/gameData';
 
@@ -22,7 +22,7 @@ const localforageStorage = {
 };
 
 // ── Modal & Phase types ──
-export type ModalType = 'PRD' | 'LAIR' | 'PHONE' | 'NEWSPAPER' | 'LONGBOX' | 'TEAM' | 'PULLLIST' | 'LIFESTYLE' | null;
+export type ModalType = 'PRD' | 'LAIR' | 'PHONE' | 'NEWSPAPER' | 'LONGBOX' | 'TEAM' | 'PULLLIST' | 'LIFESTYLE' | 'AI_SETTINGS' | 'NEMESIS_DOSSIER' | null;
 export type GamePhase = 'TITLE' | 'CREATION' | 'PLAYING' | 'GAMEOVER' | 'VICTORY';
 export type FXState = { text: string; type: 'COMBAT' | 'DANGER' | 'VICTORY' } | null;
 
@@ -40,7 +40,6 @@ interface GameState {
   battlePassXp: number;
   bpRewards: BattlePassReward[];
   isPremium: boolean;
-  activeTheme: ThemeVariant;
   assets: Asset[];
 
   // UI (transient — not persisted)
@@ -72,7 +71,6 @@ interface GameState {
   setBattlePassXp: (xp: number | ((prev: number) => number)) => void;
   setBpRewards: (r: BattlePassReward[] | ((prev: BattlePassReward[]) => BattlePassReward[])) => void;
   setIsPremium: (v: boolean) => void;
-  setActiveTheme: (t: ThemeVariant) => void;
   setAssets: (a: Asset[] | ((prev: Asset[]) => Asset[])) => void;
   setArchives: (a: ArchivedHero[] | ((prev: ArchivedHero[]) => ArchivedHero[])) => void;
 
@@ -114,7 +112,6 @@ export const useGameStore = create<GameState>()(
       battlePassXp: 0,
       bpRewards: [...INITIAL_BP_REWARDS],
       isPremium: false,
-      activeTheme: 'DEFAULT' as ThemeVariant,
       assets: [...INITIAL_ASSETS],
       archives: [],
 
@@ -144,7 +141,6 @@ export const useGameStore = create<GameState>()(
       setBattlePassXp: (xp) => set((state) => ({ battlePassXp: resolve(xp, state.battlePassXp) })),
       setBpRewards: (r) => set((state) => ({ bpRewards: resolve(r, state.bpRewards) })),
       setIsPremium: (v) => set({ isPremium: v }),
-      setActiveTheme: (t) => set({ activeTheme: t }),
       setAssets: (a) => set((state) => ({ assets: resolve(a, state.assets) })),
       setArchives: (a) => set((state) => ({ archives: resolve(a, state.archives) })),
 
@@ -177,7 +173,6 @@ export const useGameStore = create<GameState>()(
           battlePassXp: 0,
           bpRewards: [...INITIAL_BP_REWARDS],
           isPremium: false,
-          activeTheme: 'DEFAULT',
           assets: [...INITIAL_ASSETS],
           activeTab: 'CIVILIAN',
           isProcessing: false,
@@ -207,7 +202,6 @@ export const useGameStore = create<GameState>()(
         battlePassXp: state.battlePassXp,
         bpRewards: state.bpRewards,
         isPremium: state.isPremium,
-        activeTheme: state.activeTheme,
         assets: state.assets,
         archives: state.archives,
       }),

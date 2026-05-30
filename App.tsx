@@ -8,7 +8,7 @@ import { VictoryScreen } from './pages/VictoryScreen';
 import { audio } from './services/audioService';
 
 function App() {
-  const { gamePhase, activeTheme } = useGameStore();
+  const { gamePhase } = useGameStore();
 
   useEffect(() => {
     const initAudio = () => {
@@ -23,13 +23,6 @@ function App() {
       window.removeEventListener('keydown', initAudio);
     };
   }, []);
-
-  useEffect(() => {
-    document.body.className = '';
-    if (activeTheme === 'NOIR') document.body.classList.add('theme-noir');
-    if (activeTheme === 'RETRO') document.body.classList.add('theme-retro');
-    if (activeTheme === 'NEON') document.body.classList.add('theme-neon');
-  }, [activeTheme]);
 
   switch (gamePhase) {
     case 'TITLE': return <TitleScreen />;

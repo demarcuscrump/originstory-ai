@@ -15,8 +15,10 @@ import {
 } from '../services/aiService';
 import { audio } from '../services/audioService';
 import {
-  INITIAL_STATS, getActionOutcome, getThemeForUniverse, clampAllStats,
+  INITIAL_STATS, getActionOutcome, clampAllStats,
 } from '../constants/gameData';
+
+const PANEL_IMAGE_FAILURE = 'Panel art could not be generated. Check your OpenRouter key, credits, or image model.';
 
 export const useGameActions = () => {
   const store = useGameStore();
@@ -29,7 +31,7 @@ export const useGameActions = () => {
     setIsProcessing, setActiveModal, setSuggestedActions,
     setActiveCrisis, setNewspaperHeadline, setActiveVillain,
     setFxState, setPendingLegacy, setGameOverReason,
-    setActiveTheme, setActiveTab, setBpRewards, setIsPremium,
+    setBpRewards,
     grantXp,
   } = store;
 
@@ -46,6 +48,15 @@ export const useGameActions = () => {
     const newActions = await generateSuggestedActions(narrative, char);
     setSuggestedActions(newActions);
   }, [setSuggestedActions]);
+
+  const finishPanelImage = useCallback((eventId: string, imageUrl: string | undefined) => {
+    setHistory(prev => prev.map(e => e.id === eventId ? {
+      ...e,
+      imageUrl,
+      isGeneratingImage: false,
+      imageError: imageUrl ? undefined : PANEL_IMAGE_FAILURE,
+    } : e));
+  }, [setHistory]);
 
   const archiveCurrentHero = useCallback((outcome: 'VICTORY' | 'DEFEATED' | 'RETIRED' | 'MIA') => {
     if (!character) return;
@@ -90,8 +101,6 @@ export const useGameActions = () => {
       default: startingStats.justice += 10;
     }
 
-    setActiveTheme(getThemeForUniverse(char.universe));
-
     const charWithCostume = {
       ...char,
       currentArc: "The Beginning",
@@ -109,9 +118,7 @@ export const useGameActions = () => {
     }]);
     setGamePhase('PLAYING');
 
-    generatePanelImage(originStory, charWithCostume).then(imageUrl => {
-      setHistory(prev => prev.map(e => e.id === initialEventId ? { ...e, imageUrl, isGeneratingImage: false } : e));
-    });
+    generatePanelImage(originStory, charWithCostume).then(imageUrl => finishPanelImage(initialEventId, imageUrl));
     updateSuggestions(originStory, charWithCostume);
 
     generateNemesis(charWithCostume).then(async newNemesis => {
@@ -127,7 +134,7 @@ export const useGameActions = () => {
 
     generateUpgrades(charWithCostume).then(u => setUpgrades(u));
     generateNPCs(charWithCostume).then(n => setNpcs(n));
-  }, [setCharacter, setStats, setSidekicks, grantXp, setHistory, setGamePhase, setNemesis, setUpgrades, setNpcs, setActiveTheme, updateSuggestions]);
+  }, [setCharacter, setStats, setSidekicks, grantXp, setHistory, setGamePhase, setNemesis, setUpgrades, setNpcs, updateSuggestions, finishPanelImage]);
 
   // ── Legacy ──
 
@@ -183,10 +190,8 @@ export const useGameActions = () => {
     setGamePhase('PLAYING');
     setIsProcessing(false);
 
-    generatePanelImage(narrative, character).then(imageUrl => {
-      setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl, isGeneratingImage: false } : e));
-    });
-  }, [character, stats.retconPoints, setIsProcessing, setStats, setHistory, setGamePhase]);
+    generatePanelImage(narrative, character).then(imageUrl => finishPanelImage(eventId, imageUrl));
+  }, [character, stats.retconPoints, setIsProcessing, setStats, setHistory, setGamePhase, finishPanelImage]);
 
   // ── Sidekick ──
 
@@ -287,14 +292,12 @@ export const useGameActions = () => {
 
     const narrative = `You enter the workshop and finalize the designs. The fabrication units whir to life. You step out wearing your new gear: ${newCostume}. You feel stronger, faster, and ready for anything.`;
     const eventId = Date.now().toString();
-    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'NARRATIVE', timestamp: Date.now() }]);
-    generatePanelImage(narrative, updatedChar).then(imageUrl => {
-      setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl, isGeneratingImage: false } : e));
-    });
+    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'NARRATIVE', timestamp: Date.now(), isGeneratingImage: true }]);
+    generatePanelImage(narrative, updatedChar).then(imageUrl => finishPanelImage(eventId, imageUrl));
     setIsProcessing(false);
     audio.playFanfare();
     grantXp(50);
-  }, [character, stats, setStats, setActiveModal, setIsProcessing, setCharacter, setHistory, grantXp]);
+  }, [character, stats, setStats, setActiveModal, setIsProcessing, setCharacter, setHistory, grantXp, finishPanelImage]);
 
   // ── Crisis Resolution ──
 
@@ -324,14 +327,12 @@ export const useGameActions = () => {
       newStats, history, nemesis
     );
     const eventId = Date.now().toString();
-    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'CRISIS', timestamp: Date.now() }]);
-    generatePanelImage(narrative, character).then(imageUrl => {
-      setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl, isGeneratingImage: false } : e));
-    });
+    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'CRISIS', timestamp: Date.now(), isGeneratingImage: true }]);
+    generatePanelImage(narrative, character).then(imageUrl => finishPanelImage(eventId, imageUrl));
     updateSuggestions(narrative, character);
     setIsProcessing(false);
     grantXp(25);
-  }, [character, stats, history, nemesis, setActiveCrisis, setIsProcessing, setStats, setHistory, updateSuggestions, grantXp]);
+  }, [character, stats, history, nemesis, setActiveCrisis, setIsProcessing, setStats, setHistory, updateSuggestions, grantXp, finishPanelImage]);
 
   // ── NPC Interaction ──
 
@@ -359,14 +360,13 @@ export const useGameActions = () => {
     setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'NARRATIVE', timestamp: Date.now(), statsChanged: { sanity: npc.bonusType === 'SANITY' ? 20 : 0 } }]);
 
     if (Math.random() > 0.75) {
-      generatePanelImage(narrative, character).then(imageUrl => {
-        if (imageUrl) setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl } : e));
-      });
+      setHistory(prev => prev.map(e => e.id === eventId ? { ...e, isGeneratingImage: true, imageError: undefined } : e));
+      generatePanelImage(narrative, character).then(imageUrl => finishPanelImage(eventId, imageUrl));
     }
     updateSuggestions(narrative, character);
     setIsProcessing(false);
     grantXp(10);
-  }, [character, isProcessing, stats, history, nemesis, setActiveModal, setIsProcessing, setNpcs, setStats, setHistory, updateSuggestions, grantXp]);
+  }, [character, isProcessing, stats, history, nemesis, setActiveModal, setIsProcessing, setNpcs, setStats, setHistory, updateSuggestions, grantXp, finishPanelImage]);
 
   // ── Villain Encounter ──
 
@@ -405,11 +405,9 @@ export const useGameActions = () => {
     setStats(newStats);
     const eventId = Date.now().toString();
     setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'ACTION_RESULT', timestamp: Date.now(), isGeneratingImage: true }]);
-    generatePanelImage(narrative, character).then(imageUrl => {
-      if (imageUrl) setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl, isGeneratingImage: false } : e));
-    });
+    generatePanelImage(narrative, character).then(imageUrl => finishPanelImage(eventId, imageUrl));
     setIsProcessing(false);
-  }, [character, stats, nemesis, triggerFX, setActiveVillain, setIsProcessing, setNemesis, setStats, setHistory, grantXp]);
+  }, [character, stats, nemesis, triggerFX, setActiveVillain, setIsProcessing, setNemesis, setStats, setHistory, grantXp, finishPanelImage]);
 
   // ── Main Action ──
 
@@ -556,10 +554,8 @@ export const useGameActions = () => {
 
       const arcNarrative = await generateArcEvent(arcChar, arcPhase, nemesis);
       const arcEventId = Date.now().toString();
-      setHistory(prev => [...prev, { id: arcEventId, text: arcNarrative, type: 'ARC_EVENT', timestamp: Date.now() }]);
-      generatePanelImage(arcNarrative, arcChar).then(imageUrl => {
-        if (imageUrl) setHistory(prev => prev.map(e => e.id === arcEventId ? { ...e, imageUrl } : e));
-      });
+      setHistory(prev => [...prev, { id: arcEventId, text: arcNarrative, type: 'ARC_EVENT', timestamp: Date.now(), isGeneratingImage: true }]);
+      generatePanelImage(arcNarrative, arcChar).then(imageUrl => finishPanelImage(arcEventId, imageUrl));
 
       if (arcPhase === "THE GAUNTLET" && nemesis && !nemesis.defeated) {
         setNemesis(prev => prev ? ({ ...prev, schemeProgress: Math.min(90, (prev.schemeProgress || 0) + 30) }) : null);
@@ -572,7 +568,7 @@ export const useGameActions = () => {
     setCharacter, setStats, setHistory, setNemesis, setGamePhase, setNpcs,
     setIsProcessing, setActiveModal, setSuggestedActions, setActiveCrisis,
     setActiveVillain, setNewspaperHeadline, setGameOverReason,
-    triggerFX, grantXp, handleLegacy, updateSuggestions]);
+    triggerFX, grantXp, handleLegacy, updateSuggestions, finishPanelImage]);
 
   // ── Showdown ──
 
@@ -591,10 +587,8 @@ export const useGameActions = () => {
     const narrative = await generateShowdownNarrative(character, nemesis, isVictory);
 
     const eventId = Date.now().toString();
-    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'ACTION_RESULT', timestamp: Date.now() }]);
-    generatePanelImage(narrative, character).then(imageUrl => {
-      if (imageUrl) setHistory(prev => prev.map(e => e.id === eventId ? { ...e, imageUrl } : e));
-    });
+    setHistory(prev => [...prev, { id: eventId, text: narrative, type: 'ACTION_RESULT', timestamp: Date.now(), isGeneratingImage: true }]);
+    generatePanelImage(narrative, character).then(imageUrl => finishPanelImage(eventId, imageUrl));
 
     if (isVictory) {
       triggerFX("K.O.!", "VICTORY");
@@ -609,7 +603,7 @@ export const useGameActions = () => {
       if (stats.sanity <= 20) { setGameOverReason("Defeated by Nemesis"); setGamePhase('GAMEOVER'); }
     }
     setIsProcessing(false);
-  }, [character, nemesis, isProcessing, stats, upgrades, setIsProcessing, setSuggestedActions, setHistory, setNemesis, setStats, setGamePhase, setGameOverReason, triggerFX, grantXp]);
+  }, [character, nemesis, isProcessing, stats, upgrades, setIsProcessing, setSuggestedActions, setHistory, setNemesis, setStats, setGamePhase, setGameOverReason, triggerFX, grantXp, finishPanelImage]);
 
   // ── Battle Pass ──
 
@@ -626,13 +620,12 @@ export const useGameActions = () => {
       setBpRewards(prev => prev.map((r, i) => i === rewardIndex ? { ...r, isClaimedFree: true } : r));
     } else {
       if (reward.isClaimedPremium) return;
-      if (reward.premiumReward.themeId) setActiveTheme(reward.premiumReward.themeId);
       if (reward.premiumReward.type === 'CONTENT') newStats.glory += 50;
       setBpRewards(prev => prev.map((r, i) => i === rewardIndex ? { ...r, isClaimedPremium: true } : r));
     }
     setStats(newStats);
     audio.playFanfare();
-  }, [stats, setStats, setBpRewards, setActiveTheme]);
+  }, [stats, setStats, setBpRewards]);
 
   return {
     handleCharacterComplete,
